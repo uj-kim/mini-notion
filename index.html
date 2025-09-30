@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Vanilla Notion Pro - Final</title>
+
+    <!-- Inter font (optimized) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside id="sidebar" class="sidebar">
+        <div class="inner">
+          <!-- Sidebar Toggle Button -->
+          <button id="collapseBtn" class="collapse-btn" title="Collapse">
+            <<
+          </button>
+
+          <!-- User Info Box -->
+          <div class="user-box">
+            <div class="avatar">/</div>
+            <div class="user-meta">
+              <!-- 시각적 계층 구조 확립(이름 우선, 이메일 보조) -->
+              <strong>Guest</strong>
+              <small>guest@example.com</small>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <!-- 사이드바 상단에서 자주 쓰는 기능 버튼 모음 -->
+          <div class="nav-items">
+            <div class="item" id="actionSearch">
+              <span>🔎 Search</span>
+              <div class="right">
+                <span class="kbd">⌘</span><span class="kbd">K</span>
+              </div>
+            </div>
+            <div class="item" id="actionSettings">
+              <span>⚙️ Settings</span>
+            </div>
+            <div class="item" id="actionCreateRoot">
+              <span>➕ New page</span>
+            </div>
+          </div>
+
+          <!-- Documents -->
+          <div class="group-title">All pages</div>
+          <!-- #docListRoot : (빈 div) => 문서 트리를 JS로 렌더링 할 자리 -->
+          <!-- 사용자가 만든 페이지들이 계층 구조로 나타나는 핵심 영역 -->
+          <div id="docListRoot" class="doc-list"></div>
+          <div class="nav-items">
+            <div class="item" id="actionAddPage">
+              <span>➕ Add a page</span>
+            </div>
+          </div>
+
+          <!-- Trash trigger -->
+          <div class="nav-items">
+            <div class="item" id="trashTrigger">
+              <span>🗑️ Trash</span>
+            </div>
+          </div>
+
+          <!-- Resize handle -->
+          <!-- #resizeHandle : JS에서 드래그 이벤트 감지, 사이다 바 폭 조절 -->
+          <div
+            id="resizeHandle"
+            class="resize-handle"
+            title="Drag to resize / Double click to reset"
+          ></div>
+        </div>
+      </aside>
+
+      <!-- Peek button when collapse (mobile/compact) -->
+      <button id="sidebarPeekBtn" class="peek-btn" title="Open sidebar">
+        ☰
+      </button>
+
+      <!-- Navbar -->
+      <header class="navbar">
+        <div class="row">
+          <button
+            id="menuBtn"
+            class="menu-btn"
+            title="Open sidebar"
+            aria-label="Open sidebar"
+          >
+            ☰
+          </button>
+          <div id="breadcrumbs" class="breadcrumbs">Welcome</div>
+        </div>
+        <div class="row-end">
+          <button id="openFavoritesModal" class="btn small" title="Favorites">
+            ★ Favorites
+          </button>
+          <button id="starBtn" class="btn small" title="Star/Unstar">☆</button>
+          <button id="newChildBtn" class="btn small" title="New subpage">
+            ＋ Subpage
+          </button>
+          <button id="actionSearch" class="btn small" title="Search">🔎</button>
+          <button id="actionSettings" class="btn small" title="Settings">
+            ⚙️
+          </button>
+        </div>
+      </header>
+
+      <!-- Main -->
+      <main>
+        <div class="doc-canvas">
+          <!-- Header -->
+          <div class="doc-header">
+            <button id="iconBtn" class="doc-icon-big" title="Change icon">
+              📄
+            </button>
+            <div class="title-wrap">
+              <input
+                id="titleInput"
+                class="title-input"
+                placeholder="Untitled"
+              />
+              <div id="docMeta" class="meta">
+                -
+                <span id="lastEdited"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Toolbar -->
+          <div
+            id="toolbar"
+            class="toolbar"
+            role="toolbar"
+            aria-level="Editor toolbar"
+          >
+            <!-- Font Style -->
+            <button class="tbtn" data-cmd="bold"><b>B</b></button>
+            <button class="tbtn" data-cmd="italic"><i>I</i></button>
+            <button class="tbtn" data-cmd="underline"><u>U</u></button>
+            <span class="sep"></span>
+            <!-- 문단 스타일 -->
+            <button class="tbtn" data-format="P">P</button>
+            <button class="tbtn" data-format="H1">H1</button>
+            <button class="tbtn" data-format="H2">H2</button>
+            <button class="tbtn" data-format="H3">H3</button>
+            <span class="sep"></span>
+            <!-- 글머리기호리스트, 번호리스트, 체크박스Todo, 코드블록, 인용구 -->
+            <button id="bulletsBtn" class="tbtn">• List</button>
+            <button id="numbersBtn" class="tbtn">1. List</button>
+            <button id="todoBtn" class="tbtn">☐ To-do</button>
+            <button id="codeBtn" class="tbtn">{}</button>
+            <button id="quoteBtn" class="tbtn">❝</button>
+          </div>
+
+          <!-- Editor : contenteditable="true" => 사용자가 입력/수정 가능한 영역(편집기)-->
+          <!-- 브라우저가 자동으로 입력창으로 취급 => 사용자가 입력시 HTML요소가 직접 생성됨 -->
+          <div id="editor" class="editor" contenteditable="true"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 보조 UI : 평소에는 화면에 안 보임. 특정 트리거에 사용자와 상호작용하는 요소들 -->
+
+    <!-- Trash Popover : 사이드바의 Trash 버튼 누르면 열림 -->
+    <div id="trashPopover" class="popover" style="width: 360px">
+      <div class="search">
+        <span>🔎</span>
+        <input id="trashSearch" placeholder="Filter by page title..." />
+      </div>
+      <div id="trashList" class="trash-list" role="listbox"></div>
+    </div>
+
+    <!-- Emoji Picker: 문서아이콘 변경 UI -->
+    <div id="emojiPicker" class="popover" style="width: 340px">
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+
+    <!-- Search Overlay : Cmd + K 혹은 검색 버튼을 누르면 열리는 검색창 -->
+    <div id="searchOverlay" class="overlay">
+      <div class="search-modal">
+        <input
+          id="searchInput"
+          class="search-input"
+          placeholder="Search pages..."
+        />
+        <div id="searchResults" class="search-results"></div>
+        <div class="hint">↑/↓ navigate, Enter open, ESC close</div>
+      </div>
+    </div>
+
+    <!-- Settings Overlay -->
+    <div id="settingsOverlay" class="overlay">
+      <div class="settings-modal">
+        <div class="settings-header">
+          <h3>Settings</h3>
+          <button id="settingsClose" class="btn small">Close</button>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Ligth/Dark Theme Toggle -->
+          <div class="settings-row">
+            <div>
+              <div class="label">Use light theme</div>
+              <div class="sublabel">Toggle between light and dark modes</div>
+            </div>
+            <label class="switch">
+              <input id="themeToggle" type="checkbox" />
+              <span>Light</span>
+            </label>
+          </div>
+
+          <!-- Export : 현재 저장된 문서 데이터를 JSON파일로 내려받기 -->
+          <div class="settings-row">
+            <div>
+              <div class="label">Export dsubata</div>
+              <div class="sublabel">Download your notes as JSON</div>
+            </div>
+            <button id="exportBtn" class="btn small">Export</button>
+          </div>
+
+          <!-- Import -->
+          <div class="settings-row">
+            <div>
+              <div class="label">Import data</div>
+              <div class="sublabel">Restore from a JSON backup</div>
+            </div>
+            <label
+              class="btn small"
+              style="
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              Import
+              <input
+                id="importFile"
+                type="file"
+                accept="application/json"
+                style="
+                  position: absolute;
+                  inset: 0;
+                  opacity: 0;
+                  cursor: pointer;
+                "
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Favorites Overlay : 즐겨찾기 문서 전용 UI -->
+    <div id="favoritesOverlay" class="overlay">
+      <div class="favorites-modal">
+        <div
+          class="row"
+          style="justify-content: space-between; margin-bottom: 8px"
+        >
+          <h3 style="margin: 0">Favorites</h3>
+          <button id="favoritesClose" class="btn small">Close</button>
+        </div>
+        <div id="favoritesListModal" class="favorites-list"></div>
+      </div>
+    </div>
+
+    <!-- Confirm modal : 중요한 작업 전 재확인 창(ex. 문서 영구 삭제, 휴지통 비우기 등)-->
+    <div id="modalOverlay" class="modal-overlay">
+      <div class="modal">
+        <h3 id="modalTitle">Confirm</h3>
+        <div id="modalMessage" style="margin: 8px 0 12px"></div>
+        <div class="row-end">
+          <button id="modalCancle" class="btn">Cancel</button>
+          <button id="modalConfirm" class="btn danger">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toasts : 화면 하단에 잠시 표시되는 알림-->
+    <div id="toasts" class="toasts"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
