@@ -199,17 +199,17 @@ function restoreDoc(id) {
   const doc = state.trash[idx];
   state.trash.splice(idx, 1);
 
-  const desiredParentid =
+  const desiredParentId =
     doc.__origParentId !== undefined ? doc.__origParentId : doc.parentId;
 
-  if (desiredParentid && !existsInDocs(desiredParentId)) {
+  if (desiredParentId && !existsInDocs(desiredParentId)) {
     // 부모가 아직 휴지통이면 root에 복원 + orphan플래그
     doc.parentId = null;
     doc.__restoredOrphan = true;
-    doc.__origParentId = desiredParentid;
+    doc.__origParentId = desiredParentId;
     toast("부모가 휴지통에 있어 루트로 복원되었습니다.", "success");
   } else {
-    doc.parentId = desiredParentid ?? null;
+    doc.parentId = desiredParentId ?? null;
     delete doc.__restoredOrphan;
   }
 
@@ -339,7 +339,7 @@ function toast(msg, type = "") {
 // 날짜 포맷 헬퍼
 function fmtDate(ts) {
   const d = new Date(ts);
-  return d.toLacaleString(); //브라우저의 자동 지역화
+  return d.toLocaleString(); //브라우저의 자동 지역화
 }
 
 // Layout refs : 자주쓰는 DOM 요소 캐시
@@ -401,12 +401,12 @@ function renderNode(doc, level) {
     });
   }
 
-  const iconCls = "doc-icon" + (doc.icon ? "has-icon" : "no-icon");
+  const iconCls = "doc-icon " + (doc.icon ? "has-icon" : "no-icon");
   const icon = el("div", {
     className: iconCls,
     textContent: doc.icon ? doc.icon : "∅",
   });
-  const labelCls = "label" + (doc.icon ? "has-icon" : "no-icon");
+  const labelCls = "label " + (doc.icon ? "has-icon" : "no-icon");
   const label = el("div", {
     className: labelCls,
     textContent: doc.title,
@@ -449,7 +449,8 @@ function renderNode(doc, level) {
 
   row.addEventListener("click", () => navigateTo(doc.id));
 
-  // DnD
+  // DnD(Drag N Drop)
+  //   이벤트 순서 : dragstart -> dragover -> dragleave -> drop -> dragend
   row.addEventListener("dragstart", handleDragStart);
   row.addEventListener("dragover", handleDragOver);
   row.addEventListener("dragleave", handleDragLeave);
@@ -471,4 +472,60 @@ function renderNode(doc, level) {
     wrap.append(kidsWrap);
   }
   return wrap;
+}
+
+// DnD handlers
+let dragSrcId = null;
+function handleDragStart(e) {
+  // 현재 드래그하고 있는 문서의 id
+  dragSrcId = this.dataset.id;
+  //   브라우저에게 "이동" 동작 알림
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", dragSrcId);
+}
+
+// 드래그 중 임의의 행 위에 올라왔을 때 실행
+function handleDragOver(e) {
+  // e.preventDefault()를 호출(필수)해야 브라우저가 드롭을 허용
+  e.preventDefault();
+  //   마우스가 행 어느 높이에 있는지 계산 -> 드롭 위치를 직관적으로 파악 가능
+  const rect = this.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  this.classList.remove("dragover-top", "dragover-bottom", "dragover-inside");
+  if (y < rect.height * 0.25) {
+    this.classList.add("dragover-top");
+  } else if (y > rect.height * 0.75) {
+    this.classList.add("dragover-bottom");
+  } else {
+    this.classList.add("dragover-inside");
+  }
+}
+
+// 마우스가 행을 벗어날 때 실행 (시각적 힌트 제거)
+function handleDragLeave() {
+  this.classList.remove("dragover-top", "dragover-bottom", "dragover-inside");
+}
+
+// 마우스를 놓는 순간 실행
+function handleDrop(e) {
+  e.preventDefault(); // -> 드롭 허용
+  const targetId = this.dataset.id; // 드롭된 행 id
+  const rect = this.getBoundiingClientRect();
+  const y = e.clientY - rect.top;
+  let pos = "inside";
+  if (y < rect.height * 0.25) pos = "before";
+  else if (y > rect.height * 0.75) pos = "after";
+  moveDoc(dragSrcId, targetId, pos); // 실제 데이터 이동
+  this.classList.remove("dragover-top", "dragover-bottom", "dragover-inside"); // 드롭 가이드 제거
+  renderTrees(); //전체 재렌더
+}
+
+// 드래그 종료 시 실행(성공/취소 모두)
+function handleDragEnd() {
+  // 모든 행의 드래그 가이드 제거
+  $$(".tree-row").forEach((r) =>
+    r.classList.remove("dragover-top", "dragover-bottom", "dragover-inside")
+  );
+  //   dragSrcId 초기화
+  dragSrcId = null;
 }
