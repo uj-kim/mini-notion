@@ -86,11 +86,15 @@ body {
     Cantarell, Noto Sans, sans-serif;
   font-size: 14px;
   line-height: 1.45;
+  /* 폰트 렌더링 최적화: 글자 선명도 + 가독성 향상 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* 라이트/다크 테마 전환시 색상 부드럽게 페이드  */
   transition: background-color 0.25s ease, color 0.25s ease;
 }
+/* 버튼 기본 스타일 */
+/* 브라우저마다 버튼에 제각각 다른 스타일이 적용되기 때문에 초기화 필요 */
 button {
   border: none;
   background: none;
@@ -112,6 +116,7 @@ button {
 /* ===== Sidebar ===== */
 .sidebar {
   grid-column: 1;
+  /* 1행부터 2행까지 세로로 확장 : 네비게이션 바 아래까지 이어져 화면 왼촉 전체를 차지 */
   grid-row: 1 / span 2;
   position: relative;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent),
@@ -155,6 +160,7 @@ button {
   right: 0;
   width: 4px;
   height: 100%;
+  /* 좌우 드래그 가능 표시 */
   cursor: ew-resize;
   background: linear-gradient(
     90deg,
@@ -201,6 +207,7 @@ button {
   justify-content: space-between;
   padding: 10px 14px;
   background: var(--panel-2);
+  /* 보더 + 그림자 : 고정된 상단바 느낌 강조 */
   border-bottom: 1px solid var(--border);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
   color: var(--text);
@@ -299,10 +306,12 @@ main {
   gap: 10px;
   padding: 10px;
   border-radius: 16px;
+  /* 배경 + 은은한 흰색 그래디언트 */
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent),
     var(--panel-2);
   margin: 8px;
 }
+/* 프로필 이미지 대체 박스 */
 .avatar {
   width: 28px;
   height: 28px;
@@ -363,6 +372,8 @@ main {
 .doc-list {
   padding: 6px;
 }
+
+/* 문서 하나를 나타내는 줄(각 행) */
 .tree-row {
   display: flex;
   align-items: center;
@@ -380,7 +391,7 @@ main {
   background: color-mix(in oklab, var(--primary) 14%, transparent);
   color: var(--text);
 }
-
+/* 드래그 위치 시각적 피드백 제공 : 사용자 불안 해소, 안정적 문서 이동 UX*/
 .tree-row.dragover-top {
   box-shadow: inset 0 2px 0 0 var(--primary);
 }
@@ -470,7 +481,9 @@ main {
   background: var(--panel-3);
   color: var(--text);
 }
+/* body에 직접 붙는 떠 있는 메뉴박스(포털) */
 .dropdown-menu {
+  /* 화면 기준 좌표 고정 */
   position: fixed;
   min-width: 240px;
   background: var(--panel);
@@ -484,7 +497,7 @@ main {
 .dropdown-menu.open {
   display: block;
 }
-
+/* 각각의 드롭다운 메뉴 아이템(행) */
 .menu-item {
   padding: 10px;
   border-radius: 10px;
@@ -503,6 +516,7 @@ main {
 
 /* ===== Popover (Trash / Emoji) via portal ===== */
 .popover {
+  /* 고정위치 */
   position: fixed;
   width: 320px;
   background: var(--panel);
@@ -516,6 +530,7 @@ main {
 .popover.open {
   display: block;
 }
+/* 필터링용 검색창 영역 */
 .popover .search {
   display: flex;
   align-items: center;
@@ -525,8 +540,11 @@ main {
   border-radius: 10px;
   padding: 4px 8px;
 }
+/* 검색 입력창 스타일 */
 .popover input {
+  /* 브라우저 기본스타일 제거 */
   all: unset;
+  /* 남은 공간 전부 차지 */
   flex: 1;
   padding: 4px;
 }
@@ -585,10 +603,12 @@ main {
 
 /* ===== Overlays (Search / Settings / Favorites) ===== */
 .overlay {
+  /* 전체 화면 고정 덮개 */
   position: fixed;
   inset: 0;
   display: none;
   place-items: center;
+  /* Overlay특유의 화면을 어둡게 가리는 효과: 시선집중 + 바깥차단 */
   background: rgba(0, 0, 0, 0.5);
   padding: 16px;
   z-index: var(--z-overlay);
@@ -613,7 +633,7 @@ main {
   color: var(--text);
   margin-bottom: 8px;
 }
-
+/* 검색결과 박스 */
 .search-results {
   max-height: 320px;
   overflow: auto;
@@ -621,7 +641,7 @@ main {
   border-radius: 12px;
   background: var(--panel);
 }
-
+/* 즐겨찾기 목록 */
 .favorites-list {
   max-height: 360px;
   overflow: auto;
@@ -830,7 +850,7 @@ main {
   height: 20px;
   background: var(--border);
 }
-
+/* 실제 글 작성 영역 */
 .editor {
   min-height: 600px;
   margin-top: 10px;
@@ -841,7 +861,7 @@ main {
   box-shadow: var(--shadow);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-
+/* 커서가 안쪽에 있을 때 활성상태 */
 .editor:focus-within {
   border-color: var(--md-border-focus);
   box-shadow: var(--shadow), var(--md-shadow-focus);
