@@ -352,3 +352,123 @@ const docListRoot = $("#docListRoot");
 const breadcrumbs = $("#breadcrumbs");
 const starBtn = $("#starBtn");
 const newChildBtn = $("#newChildBtn");
+
+// =====================
+// Render: Trees (사이드바 문서 트리 렌더링)
+// =====================
+// 전체 sidebar 갱신 진입점
+// : 내부 호출을 증설해 확장할 수 있음. 외부에서는 renderTrees()만 호출하면 됨.
+//  => interface 안정성 향상
+function renderTrees() {
+  renderTree();
+  renderFavorites();
+}
+
+function renderTree() {
+  if (!docListRoot) return;
+  docListRoot.innerHTML = "";
+  const roots = childrenOf(null);
+  if (roots.length === 0) {
+    const p = el("p", {
+      className: "muted",
+      textContent: "No pages available",
+    });
+    docListRoot.appendChild(p);
+  }
+  roots.forEach((d) => docListRoot.appendChild(renderNode(d, 0)));
+}
+
+function renderNode(doc, level) {
+  const wrap = el("div");
+  const row = el("div", { className: "tree-row", draggable: true });
+  row.dataset.id = doc.id;
+  if (state.activeId === doc.id) row.classList.add("active");
+  row.style.paddingLeft = 12 + level * 12 + "px";
+
+  const caretBtn = el("div", { className: "caret", title: "Expand/collapse" });
+  const hasChildren = childrenOf(doc.id).length > 0;
+  caretBtn.textContent = hasChildren
+    ? state.expanded[doc.id]
+      ? "▾"
+      : "▸"
+    : "";
+  if (hasChildren) {
+    caretBtn.addEventListener("click", (e) => {
+      // 이벤트 전파 차단 -> 두 동작이 충돌하지 않고 독립적으로 동작
+      e.stopPropagation();
+      state.expanded[doc.id] = !state.expanded[doc.id];
+      renderTrees();
+    });
+  }
+
+  const iconCls = "doc-icon" + (doc.icon ? "has-icon" : "no-icon");
+  const icon = el("div", {
+    className: iconCls,
+    textContent: doc.icon ? doc.icon : "∅",
+  });
+  const labelCls = "label" + (doc.icon ? "has-icon" : "no-icon");
+  const label = el("div", {
+    className: labelCls,
+    textContent: doc.title,
+    style: "flex:1 1 auto; min-width:0;",
+  });
+  label.addEventListener("dblclick", (e) => {
+    e.stopPropagation();
+    inlineRename(doc.id, label);
+  });
+
+  const actions = el("div", { className: "tree-actions" });
+  const addBtn = el("div", {
+    className: "icon-btn ghost",
+    title: "Add child",
+    textContent: "＋",
+  });
+  addBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // 하나의 일관된 파이프 라인
+    //   1. 상태 갱신
+    const id = createDoc({ title: "Untitled", parentId: doc.id });
+    // 2. renderTrees()가 사이드바 UI에 즉시 반영
+    state.expanded[doc.id] = true;
+    toast("New note created!", "success");
+    // 3. 라우터를 통해 본문 즉시 갱신
+    navigateTo(id);
+  });
+
+  const ddBtn = el("div", {
+    className: "dropdown-btn ghost",
+    title: "More",
+    textContent: "⋯",
+  });
+  ddBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openDropdownMenu(ddBtn, doc, label);
+  });
+  actions.append(ddBtn, addBtn);
+  row.append(caretBtn, icon, label, actions);
+
+  row.addEventListener("click", () => navigateTo(doc.id));
+
+  // DnD
+  row.addEventListener("dragstart", handleDragStart);
+  row.addEventListener("dragover", handleDragOver);
+  row.addEventListener("dragleave", handleDragLeave);
+  row.addEventListener("drop", handleDrop);
+  row.addEventListener("dragend", handleDragEnd);
+
+  // 현재 행을 wrap에 추가
+  wrap.append(row);
+
+  //   펼쳐진 상태 -> 자식 렌더링
+  if (state.expanded[doc.id]) {
+    // 자식 컨테이너 생성
+    const kidsWrap = el("div", { className: "children" });
+    // 자식 목록
+    childrenOf(doc.id).forEach((ch) =>
+      // 각 자식 호출
+      kidsWrap.appendChild(renderNode(ch, level + 1))
+    );
+    wrap.append(kidsWrap);
+  }
+  return wrap;
+}
