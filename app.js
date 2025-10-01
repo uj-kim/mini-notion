@@ -302,3 +302,53 @@ function reattachOrphansFor(parentId) {
     normalizeOrders(parentId);
   }
 }
+
+// =====================
+// DOM helpers & UI
+// =====================
+// 보조 역할, 코드 전체의 가독성과 유지보수의 기반층 확립
+// 보통 유틸이나 헬퍼로 분리해서 관리
+// DOM 단축 선택자
+// 1. $ (단일 선택자) : 문서에서 첫번째 일치 요소를 반환
+const $ = (sel) => document.querySelector(sel);
+// 2. $$ (다중 선택자) : 모든 일치 요소를 배열로 반환
+// querySelectorAll은 NodeList를 반환 -> Array.from으로 감싸서 배열화
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+// DOM 요소를 새로 만들 때 필요한 반복 패턴을 줄여주는 함수
+function el(tag, opts = {}) {
+  const e = document.createElement(tag);
+  Object.assign(e, opts);
+  return e;
+}
+
+function toast(msg, type = "") {
+  const wrap = $("#toasts");
+  if (!wrap) return;
+  const t = el("div", { className: `toast ${type}` });
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => {
+    // 1. 1.8초 동안 메시지 노출 -> opacity=0 서서히 fade-out
+    t.style.opacity = "0";
+    // 2. + 0.2s -> 실제 DOM에서 제거(메모리, 레이아웃 정리)
+    setTimeout(() => t.remove(), 200);
+  }, 1800);
+}
+
+// 날짜 포맷 헬퍼
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return d.toLacaleString(); //브라우저의 자동 지역화
+}
+
+// Layout refs : 자주쓰는 DOM 요소 캐시
+const sidebar = $("#sidebar");
+const collapseBtn = $("#collapseBtn");
+const resizeHandle = $("#resizeHandle");
+const menuBtn = $("#menuBtn");
+const sidebarPeekBtn = $("#sidebarPeekBtn");
+const docListRoot = $("#docListRoot");
+const breadcrumbs = $("#breadcrumbs");
+const starBtn = $("#starBtn");
+const newChildBtn = $("#newChildBtn");
