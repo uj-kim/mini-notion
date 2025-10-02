@@ -66,18 +66,24 @@ const state = {
 // 새로 고침 후에도 문서가 사라지지 않고 유지 => localStorage 이용
 function load() {
   try {
+    // 1. 문자열 불러오기
     const raw = localStorage.getItem(STORAGE_KEY);
+    // 저장된 문서가 없다면
     if (!raw) {
       state.docs = defaultDocs.slice();
       state.trash = [];
       return;
     }
+    // 2. 저장된 문서가 있다면 => JSON Parsing
     const data = JSON.parse(raw);
+    // 3. 파싱된 데이터 -> docs, trash, expanded, activeId 각각 꺼내서 state반영
+    // 복구 범위 : 문서 + 휴지통 + 펼침상태(expanded) + 마지막 활성 문서(activeId)
     state.docs = data.docs || defaultDocs.slice();
     state.trash = data.trash || [];
     state.expanded = data.expanded || {};
     state.activeId = data.activeId || null;
   } catch (e) {
+    // 4. JSON 파싱 실패 -> 예외처리 동작
     console.warn("Failed to load, using defaults", e);
     state.docs = defaultDocs.slice();
     state.trash = [];
@@ -417,6 +423,7 @@ function renderNode(doc, level) {
     inlineRename(doc.id, label);
   });
 
+  // 자식문서 추가
   const actions = el("div", { className: "tree-actions" });
   const addBtn = el("div", {
     className: "icon-btn ghost",
@@ -424,27 +431,34 @@ function renderNode(doc, level) {
     textContent: "＋",
   });
   addBtn.addEventListener("click", (e) => {
+    // 이벤트 전파 차단(행 전체 클릭 방지)
     e.stopPropagation();
     // 하나의 일관된 파이프 라인
     //   1. 상태 갱신
+    // 새 문서 생성
     const id = createDoc({ title: "Untitled", parentId: doc.id });
-    // 2. renderTrees()가 사이드바 UI에 즉시 반영
+    // 2. renderTrees()가 사이드바 UI에 즉시 반영 => 부모문서가 펼쳐짐
     state.expanded[doc.id] = true;
     toast("New note created!", "success");
     // 3. 라우터를 통해 본문 즉시 갱신
     navigateTo(id);
   });
 
+  // 더보기 메뉴 호출
   const ddBtn = el("div", {
     className: "dropdown-btn ghost",
     title: "More",
     textContent: "⋯",
   });
   ddBtn.addEventListener("click", (e) => {
+    // 이벤트 전파 차단(행 전체 클릭 방지)
     e.stopPropagation();
+    // 버튼위치 기준, 작은 드롭다운 오픈
     openDropdownMenu(ddBtn, doc, label);
   });
+  // 컨테이너에 두 버튼 추가
   actions.append(ddBtn, addBtn);
+  // 컨테이너를 행에 부착
   row.append(caretBtn, icon, label, actions);
 
   row.addEventListener("click", () => navigateTo(doc.id));
@@ -528,4 +542,41 @@ function handleDragEnd() {
   );
   //   dragSrcId 초기화
   dragSrcId = null;
+}
+
+// 입력: 바꾸려는 문서의 id + 라벨 DOM요소
+function inlineRename(id, labelEl) {
+  // 문서찾기
+  const doc = findDoc(id);
+  // 문서를 찾지 못하면 조기종료
+  if (!doc) return;
+  // 문서를 찾은 경우 -> 라벨을 입력창으로 교체하여 즉시 편집 가능
+  const input = el("input", { value: doc.title, className: "label-edit" });
+  // 입력창 클릭 이벤트 전파 차단(트리 토글 오작동 방지)
+  input.addEventListener("click", (e) => e.stopPropagation());
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      input.blur();
+    }
+    // 입력값을 원래 제목으로 되돌림
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.value = doc.title;
+      input.blur();
+    }
+  });
+  input.addEventListener("blur", () => {
+    const title = input.value.trim() || "Untitled";
+    updateDoc(id, { title }); //사이드바 전체 재렌더
+    renderTrees();
+    // 활성 문서인 경우 -> 메타 영역도 동기화
+    if (state.activeId === id) {
+      $("#titleInput").value = title;
+      updateDocMeta();
+    }
+  });
+  labelEl.replaceWith(input);
+  input.focus();
+  input.select();
 }
