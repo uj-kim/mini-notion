@@ -524,7 +524,7 @@ function handleDragLeave() {
 function handleDrop(e) {
   e.preventDefault(); // -> 드롭 허용
   const targetId = this.dataset.id; // 드롭된 행 id
-  const rect = this.getBoundiingClientRect();
+  const rect = this.getBoundingClientRect();
   const y = e.clientY - rect.top;
   let pos = "inside";
   if (y < rect.height * 0.25) pos = "before";
@@ -580,3 +580,157 @@ function inlineRename(id, labelEl) {
   input.focus();
   input.select();
 }
+
+// =====================
+// Editor / Toolbar (콘텐츠 편집 및 서식 버튼)
+// =====================
+// 필수 DOM 요소
+const emojiPicker = $("#emojiPicker"); // 문서 아이콘 선택 팝업
+const emojiGrid = $("#emojiGrid"); // 이모지 선택 영역
+const titleInput = $("#titleInput"); // 제목 표시/수정 입력창
+const docMeta = $("#docMeta"); // 생성/수정 시각 정보
+const editor = $("#editor"); // 본문 표시, 편집 핵심 영역
+
+// sidebar에서 문서를 클릭했을 때 실행 -> 주소창 해시만 변경
+function navigateTo(id) {
+  if (!id) {
+    location.hash = "#/documents";
+  } else {
+    location.hash = "#/documents" + id;
+  }
+}
+
+// 해시 변경을 실제 상태와 화면에 반영
+function syncFromLocation() {
+  // 정규식을 통해 주소창 해시에서 문서 id 추출
+  // 해시 파싱
+  const m = location.hash.match(/#\/documents\/?([\w-]+)?/);
+  const id = m && m[1] ? m[1] : null;
+  // 활성문서 상태 갱신(동기화)
+  state.activeId = id;
+  renderTrees();
+  renderPage(); // 본문채우기
+  save(); //활성 id 포함 스냅샷 저장
+}
+window.addEventListener("hashchange", syncFromLocation);
+
+// breadcrumbs 정보 => 현재 문서로부터 부모 문서를 거슬러 올라감
+function pathOf(id) {
+  // 현재 문서 찾기
+  const path = [];
+  let cur = findDoc(id);
+  // 부모 사슬 루프 실행
+  while (cur) {
+    // 루트 -> 현재문서 순으로 정렬되도록 앞쪽에 삽입
+    path.unshift(cur);
+    // 부모가 있을 경우 부모 위치, 없으면 null로 종료
+    cur = cur.parentId ? findDoc(cur.parentId) : null;
+  }
+  return path;
+}
+
+// 본문영역 그리기
+function renderPage() {
+  if (!breadcrumbs || !titleInput || !editor || !starBtn || !docMeta) return;
+  // 현재 활성문서가 없는 경우
+  if (!state.activeId) {
+    breadcrumbs.textContent = "No page selected";
+    titleInput.value = "Welcome 👋";
+    docMeta.textContent = "—";
+    editor.innerHTML =
+      "<p>좌측에서 문서를 선택하거나 새로운 페이지를 만들어 보세요.</p>";
+    starBtn.textContent = "☆";
+    return;
+  }
+
+  const doc = findDoc(state.activeId);
+  // 활성 문서 id는 있지만, 해당문서를 찾을 수 없는 경우
+  if (!doc) {
+    breadcrumbs.textContent = "Unknown page";
+    titleInput.value = "Not found";
+    editor.innerHTML = "<p>이 문서는 존재하지 않습니다.</p>";
+    return;
+  }
+  // 정상적으로 문서를 찾은 경우
+  const path = pathOf(doc.id)
+    .map((d) => d.title)
+    .join(" / ");
+  breadcrumbs.textContent = path;
+  titleInput.value = doc.title;
+  editor.innerHTML = doc.content || "<p></p>";
+  starBtn.textContent = doc.starred ? "★" : "☆";
+  updateDocMeta();
+}
+
+// 문서의 생성/수정 시각
+function updateDocMeta() {
+  const d = state.activeId ? findDoc(state.activeId) : null;
+  const ld = $("#lastEdited");
+  // #lastEdited가 있으면 오늘 날짜 간단 표기
+  if (ld) ld.textContent = new Date().toLocaleDateString();
+  // 활성문서 존재 X
+  if (!d) {
+    docMeta.textContent = "—";
+    return;
+  }
+  docMeta.textContent = `Created ${fmtDate(d.createdAt)} · Updated ${fmtDate(
+    d.updatedAt
+  )}`;
+}
+
+// 초기화
+// 저장상태 불러오기 -> 레이아웃 맞춤 -> 사이드바, 휴지통 먼저 렌더
+function init() {
+  load(); // state.docs, state.trash, state.expanded, state.activeId 되살림
+  // 반응형 레이아웃 초기상태 설정
+  if (state.isMobile) {
+    collapseBtn();
+  } else {
+    resetWidth();
+  }
+  renderTrees(); // 트리그리기
+  renderTrash(); // 휴지통 팝오버 목록 미리 준비
+  // 해시가 비어있는 경우
+  if (!location.hash) {
+    // 기본문서로 이동
+    navigateTo("welcome");
+  } else {
+    // 해시가 있는 경우 -> 해시에 맞춰 동기화
+    syncFromLocation();
+  }
+  // 오늘날짜표기
+  const ld = $("#lastEdited");
+  if (ld) ld.textContent = new Date().toLocaleDateString();
+  // 메뉴버튼을 사이드바 상태, 뷰포트에 맞춰 표시
+  syncMenuBtnVisibility();
+}
+
+let saveTimer = null;
+
+// 입력 신호 처리(저장X)
+function saveEditorDebounced() {
+  clearTimeout(saveTimer); // 직전 타이머 취소
+  saveTimer = setTimeout(saveEditor, 400); // 새 타이머 설정 : 400ms 후 saveEditor() 호출
+}
+
+function saveEditor() {
+  // 활성문서 없는 경우, 즉시 종료
+  if (!state.activeId) return;
+  // 있는 경우, 현재 HTML를 content 반영
+  const html = editor.innerHTML;
+  updateDoc(state.activeId, { content: html });
+  updateDocMeta();
+}
+// 손을 떼고 0.4초 후 1회 저장 실행
+editor?.addEventListener("input", saveEditorDebounced);
+
+// 제목입력창 -> 입력이벤트 즉시 처리
+titleInput?.addEventListener("input", () => {
+  // 현재 활성문서가 없는 경우 조용히 종료
+  if (!state.activeId) return;
+  // 값 trim 후 비어있는 경우는 "Untitled" => list, breadcrumb에 빈 제목 노출 방지
+  const t = titleInput.value.trim() || "Untitled";
+  updateDoc(state.activeId, { title: t });
+  renderTrees(); //제목 변경 후 트리 재렌더링 -> 사이드바 업데이트
+  updateDocMeta(); // 메타 정보 갱신
+});
