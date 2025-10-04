@@ -61,6 +61,29 @@ const state = {
 };
 
 // =====================
+// Theme (Light/Dark) – explicit override via data-theme
+// =====================
+const THEME_KEY = "vnotion:theme"; //'light' | 'dark'
+
+function applyTheme(theme) {
+  // theme: 'light'  'dark'
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
+function loadTheme() {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    if (t === "light" || t === "dark") return t;
+  } catch (e) {}
+  // 기본은 다크(시스템 자동연동 원하면 아래 한 줄로 대체 가능)
+  // return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return "dark";
+}
+// 부팅시 적용
+let currentTheme = loadTheme();
+applyTheme(currentTheme);
+
+// =====================
 // Persistence & helpers (영속화 + 유틸)
 // =====================
 // 새로 고침 후에도 문서가 사라지지 않고 유지 => localStorage 이용
@@ -358,6 +381,87 @@ const docListRoot = $("#docListRoot");
 const breadcrumbs = $("#breadcrumbs");
 const starBtn = $("#starBtn");
 const newChildBtn = $("#newChildBtn");
+
+// ---- Sidebar width memory (collapse/restore) ----
+// - 사이드바 폭은 CSS 변수 --sidebar-w 로 제어하며, 마지막 폭을 localStorage에 저장
+const LS_LAST_WIDTH_KEY = "vnotion:lastSidebarWidth";
+let lastSidebarWidth = null;
+
+function readLastWidth() {
+  try {
+    const raw = localStorage.getItem(LS_LAST_WIDTH_KEY);
+    if (raw) {
+      const n = parseFloat(raw);
+      if (!isNaN(n)) lastSidebarWidth = n;
+    }
+  } catch (e) {}
+}
+
+// 실제 렌더된 사이드바 현재 폭을 숫자로 반환
+function getCurrentSidebarWidth() {
+  const sb = document.querySelector("#sidebar");
+  if (!sb) return null;
+  const v = parseFloat(getComputedStyle(sb).width || "0");
+  return isNaN(v) ? null : v;
+}
+
+// 뷰포트에 따른 사이드바 기본 폭 계산
+function defaultSidebarWidth() {
+  return window.matchMedia("(max-width:768px)").matches ? 280 : 260;
+}
+
+// ---- Width setters & animation ----
+// CSS 커스텀 변수 값 변경으로 사이드바 폭 제어
+function setSidebarWidth(px) {
+  document.documentElement.style.setProperty("--sidebar-w", px + "px");
+}
+
+// 폭 변화를 부드럽게 보간 (초기/복원/더블클릭 스냅 시 사용)
+function animateSidebarWidth(toPx, duration = 300) {
+  const fromPx = getCurrentSidebarWidth() || "0";
+  if (fromPx === toPx) {
+    setSidebarWidth(toPx);
+    return;
+  }
+  const start = performance.now();
+  function frame(now) {
+    const progress = Math.min(1, (now - start) / duration);
+    const cur = fromPx + (toPx - fromPx) * progress;
+    setSidebarWidth(toPx);
+    if (progress < 1) requestAnimationFrame(frame);
+    else setSidebarWidth(toPx);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---- Collapse & Reset ----
+// 접기: 현재 폭을 저장해두고 CSS 변수를 0으로 애니메이션
+function collapse() {
+  const cur = getCurrentSidebarWidth();
+  if (cur && cur > 0) writeLastWidth(cur);
+  sidebar.classList.add("is-collapsed");
+  animateSidebarWidth(0);
+  syncMenuBtnVisibility();
+}
+
+// 펼치기: 마지막 사용자 선호 폭(lastSidebarWidth) 또는 기본 폭으로 복원
+function resetWidth() {
+  sidebar.classList.remove("is-collapsed");
+  const remembered =
+    lastSidebarWidth && lastSidebarWidth > 0
+      ? lastSidebarWidth
+      : defaultSidebarWidth();
+  animateSidebarWidth(remembered); //부드럽게 복원
+  syncMenuBtnVisibility();
+}
+
+// 상단 메뉴 버튼 표시 여부 결정
+function syncMenuBtnVisibility() {
+  if (!menuBtn) return;
+  const show = state.isMobile || sidebar.classList.contains("is-collapsed");
+  menuBtn.style.display = show ? "grid" : "none";
+  )
+}
 
 // =====================
 // Render: Trees (사이드바 문서 트리 렌더링)
