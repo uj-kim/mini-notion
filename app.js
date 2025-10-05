@@ -460,7 +460,6 @@ function syncMenuBtnVisibility() {
   if (!menuBtn) return;
   const show = state.isMobile || sidebar.classList.contains("is-collapsed");
   menuBtn.style.display = show ? "grid" : "none";
-  )
 }
 
 // =====================
@@ -591,6 +590,86 @@ function renderNode(doc, level) {
   }
   return wrap;
 }
+
+// Body-portal dropdown
+// 현재 열려있는 dropdown 메뉴 참조
+// "전역참조를 통한 단일 진입점 관리 패턴" : 새 메뉴 열기 전 기존 메뉴를 반드시 닫음 -> UI 혼잡/초점 혼란 방지(모달/팝오버 등 실무 UI에서 매우 중요)
+let currentDropdown = null;
+
+// 진입점 : Dropdown 메뉴 열기
+function openDropdownMenu(anchorEl, doc, labelEl) {
+  closeDropdownMenu(); //이전메뉴 닫기(여러 메뉴 동시 노출 방지)
+  const rect = anchorEl.getboundingClientRect(); //기준요소 anchorEl의 화면 좌표 및 크기 -> 드롭다운 위치 계산
+  const menu = el("div", { className: "dropdown-menu open" });
+  // 문서 이름 바꾸기
+  const miRename = el("div", {
+    className: "menu-item",
+    textContent: "Rename (F2)",
+  });
+  // 즐겨찾기 토글
+  const miStar = el("div", {
+    className: "menu-item",
+    textContent: doc.starred ? "Unstar" : "Add to favorites",
+  });
+  // 휴지통 이동
+  const miDel = el("div", {
+    className: "menu-item",
+    textContent: "Delete (move to trash)",
+  });
+  // 하단 부가 정보 영역
+  const sep = el("div", { className: "menu-sep" }); // 하단 구분선
+  const editedBy = el("div", { className: "menu-item muted" }); // 마지막 편집자
+  editedBy.textContent = "Last edited by: Guest";
+
+  miRename.addEventListener("click", (e) => {
+    e.stopPropagation();
+    inlineRename(doc.id, labelEl); // 문서 id + 제목 DOM -> 인라인 편집 시작
+    closeDropdownMenu(); // 메뉴를 닫아 UI 정리
+  });
+  miStar.addEventListener("click", (e) => {
+    e.stopPropagation();
+    updateDoc(doc.id, { starred: !doc.starred });
+    if (state.activeId === doc.id) {
+      const d = findDoc(doc.id);
+      starBtn.textContent = d.starred ? "★" : "☆";
+    }
+    renderTrees(); // 사이드바 재렌더 -> 별 표시 즉시 반영
+    closeDropdownMenu();
+  });
+  // '삭제'와 같은 파괴적 동작 => 확인 + 피드백(toast알람) 필수
+  miDel.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // confirmModal로 사용자 확인 요청
+    confirmModal(`Move "${doc.title}" and its subpages to Trash?`, () => {
+      archiveDoc(doc.id);
+      toast("Note moved to trash!");
+      // 현재 활성 문서라면 본문 초기화
+      if (state.activeId === doc.id) navigateTo(null);
+      // 사이드바, 휴지통 목록 재렌더
+      renderTrees();
+      renderTrash();
+    });
+    closeDropdownMenu();
+  });
+  menu.append(miRename, miStar, miDel, sep, editedBy);
+  document.body.appendChild(menu);
+  const top = rect.bottom + 6; // 버튼 바로 아래에 약간 간격
+  const left = Math.min(rect.left, window.innerWidth - 260); // 오른쪽 밖 이탈 방지
+  menu.style.top = top + "px";
+  menu.style.left = left + "px";
+
+  currentDropdown = menu; // 이후 닫기로직에서 참조
+}
+
+// 닫기 : 현재 열려있는 메뉴가 있으면 DOM에서 제거
+function closeDropdownMenu() {
+  if (currentDropdown) {
+    currentDropdown.remove();
+    currentDropdown = null; // 전역 참조 초기화
+  }
+}
+// 문서 전체에 클릭 이벤트 등록 -> 메뉴 바깥을 클릭하면 자동 닫힘
+document.addEventListener("click", closeDropdownMenu);
 
 // DnD handlers
 let dragSrcId = null;
@@ -782,6 +861,66 @@ function updateDocMeta() {
   )}`;
 }
 
+// Toolbar
+$("#toolbar")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const cmd = btn.dataset.cmd; //브라우저 즉시 실행 명령
+  const fmt = btn.dataset.format; //블록단위서식변환
+  editor.focus(); //커서가 에디터 안에 있어야 편집 적용
+
+  if (cmd) {
+    document.execCommand(cmd, false, null);
+    saveEditor();
+    return;
+  }
+
+  if (fmt) {
+    document.execCommand("formatBlock", false, fmt === "p" ? "p" : fmt);
+    saveEditor();
+    return;
+  }
+});
+// 불릿항목 적용
+$("#bulletsBtn")?.addEventListener("click", () => {
+  editor.focus();
+  document.execCommand("insertUnorderedList");
+  saveEditor();
+});
+// 번호매기기 목록 버튼
+$("#numberBtn")?.addEventListener("click", () => {
+  editor.focus();
+  document.execCommand("insertOrderedList");
+  saveEditor();
+});
+
+// 코드 블록 버튼
+$("#codeBtn")?.addEventListener("click", () => {
+  editor.focus();
+  document.execCommand("formatBlock", false, "PRE");
+  saveEditor();
+});
+
+// 인용구 버튼
+$("#quoteBtn")?.addEventListener("click", () => {
+  editor.focus();
+  document.execCommand("formatBlock", false, "BLOCKQUOTE");
+  saveEditor();
+});
+
+// 투두 항목 버튼
+$("#todoBtn")?.addEventListener("click", () => {
+  const box = document.createElement("div");
+  box.innerHTML = `<label><input type="checkbox"> <span>To-do</span></label>`;
+  const sel = window.getSelection();
+  if (!sel.rangeCount) {
+    editor.appendChild(box);
+  } else {
+    sel.getRangeAt(0).insertNode(box);
+  }
+  saveEditor();
+});
+
 // 초기화
 // 저장상태 불러오기 -> 레이아웃 맞춤 -> 사이드바, 휴지통 먼저 렌더
 function init() {
@@ -837,4 +976,136 @@ titleInput?.addEventListener("input", () => {
   updateDoc(state.activeId, { title: t });
   renderTrees(); //제목 변경 후 트리 재렌더링 -> 사이드바 업데이트
   updateDocMeta(); // 메타 정보 갱신
+});
+
+// =====================
+// Emoji picker (portal)
+// =====================
+// 실무) 이모지 개수가 수백, 수천개 -> 검색 제공
+const EMOJI = [
+  "📄",
+  "📘",
+  "📙",
+  "📗",
+  "📕",
+  "📚",
+  "🧠",
+  "🧰",
+  "🧪",
+  "🧭",
+  "🗂️",
+  "📝",
+  "🧾",
+  "📊",
+  "📈",
+  "📎",
+  "📌",
+  "⭐",
+  "⚡",
+  "🔥",
+  "✅",
+  "🧩",
+  "🎯",
+  "🔧",
+  "🔗",
+  "💡",
+  "🚀",
+  "🌟",
+  "🛠️",
+  "🗒️",
+  "🧱",
+  "🪄",
+  "🗃️",
+  "🧭",
+  "💼",
+  "🗓️",
+];
+
+// 이모지 선택기 표시
+function openEmojiPicker() {
+  const btn = document.getElementById("iconBtn"); // iconBtn 기준 좌표/크기
+  if (!btn || !emojiPicker) return;
+  const rect = btn.getBoundingClientRect();
+  emojiPicker.style.left = Math.min(rect.left, window.innerWidth - 340) + "px";
+  emojiPicker.style.top = rect.bottom + 8 + "px";
+  emojiPicker.classList.add("open");
+}
+
+// 이모지 선택기 닫기
+function closeEmojiPicker() {
+  emojiPicker?.classList.remove("open");
+}
+
+document.getElementById("iconBtn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  buildEmojiGrid(); // 이모지 목록 준비
+  openEmojiPicker();
+});
+// 이벤트 위임 -> 문서 전체 클릭 감지
+document.addEventListener("click", (e) => {
+  // 외부 클릭 감지 패턴 -> 모달/드롭다운/팝오버에 공통 적용
+  if (
+    emojiPicker &&
+    !emojiPicker.contains(e.target) &&
+    e.target.id !== "iconBtn"
+  )
+    closeEmojiPicker();
+});
+
+// 이모지 선택기 내부에 버튼 채우기
+function buildEmojiGrid() {
+  if (!emojiGrid) return;
+  // 초기화 : 기존 내용 비우기
+  emojiGrid.innerHTML = "";
+  // 이모지 배열 순회 : 각 이모지에 해당하는 버튼 생성, 추가
+  EMOJI.forEach((em) => {
+    const b = el("button", { textContent: em });
+    b.addEventListener("click", () => {
+      if (state.activeId) {
+        updateDoc(state.activeId, { icon: em });
+        const btn = document.getElementById("iconBtn");
+        if (btn) btn.textContent = em;
+        renderTrees(); //사이드바 아이콘 갱신
+      }
+      closeEmojiPicker();
+    });
+    emojiGrid.appendChild(b);
+  });
+}
+
+// 즐겨찾기 기능
+// 즐겨찾기 버튼 -> 활성문서의 starred 토글
+starBtn?.addEventListener("click", () => {
+  if (!state.activeId) return;
+  const d = findDoc(state.activeId);
+  updateDoc(state.activeId, { starred: !d.starred });
+  const nd = findDoc(state.activeId);
+  starBtn.textContent = nd.starred ? "★" : "☆";
+  renderTrees(); // 사이드바 트리 아이콘, 즐겨찾기 목록 즉시 반영
+});
+
+// 현재 활성문서의 하위 문서 생성 기능
+newChildBtn?.addEventListener("click", () => {
+  const pid = state.activeId || null;
+  const id = createDoc({ title: "Untitled", parentId: pid });
+  if (pid) state.expanded[pid] = true;
+  toast("New subpage created!", "success");
+  navigateTo(id);
+});
+
+// =====================
+// Root add-page actions (루트에 새 페이지 추가)
+// =====================
+// 루트 문서 생성 버튼 두 곳을 배열로 묶어 동일 이벤트 위임
+const actionAddPage = document.getElementById("actionAddPage");
+const actionCreateRoot = document.getElementById("actionCreateRoot");
+[actionAddPage, actionCreateRoot].forEach((btn) => {
+  if (btn) {
+    btn.addEventListener("click", () => {
+      // 최상위 루트 문서 생성
+      const id = createDoc({ title: "Untitled", parentId: null });
+      toast("New page created!", "success");
+      navigateTo(id);
+    });
+  }
 });
