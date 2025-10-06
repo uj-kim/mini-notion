@@ -1561,3 +1561,41 @@ $("#modalConfirm")?.addEventListener("click", () => {
   if (modalResolver) modalResolver();
   modalResolver = null; // 초기화 -> 중복 실행 방지
 });
+
+// =====================
+// Keyboard shortcuts (단축키)
+// =====================
+// 전역 키 리스너 등록 : 앱 전역에서 키 입력 감지
+// 전역 단축키는 입력창 포커스와 무관하게 감지, 실행됨
+document.addEventListener("keydown", (e) => {
+  const meta = e.ctrlKey || e.metaKey; // Window, macOS 크로스 플랫폼 호환성 보장
+
+  // ⌘/Ctrl + K
+  if (meta && e.key.toLowerCase() === "k") {
+    e.preventDefault(); // 브라우저의 기본 동작 연결 방지(ex. 주소창 검색 등의 충돌)
+    openSearch(); // 검색 모달 열기
+  }
+
+  // ⌘/Ctrl + Alt + N : 새 문서 만들기
+  if (meta && e.altKey && e.key.toLowerCase() === "n") {
+    e.preventDefault();
+    const pid = state.activeId || null;
+    const id = createDoc({ title: "Untitled", parentId: pid });
+    if (pid) state.expanded[pid] = true;
+    navigateTo(id);
+  }
+
+  // F2 : 이름 바꾸기
+  if (e.key === "F2" && state.activeId) {
+    e.preventDefault();
+    const row = document.querySelector(
+      `.tree-row[data-id="${state.activeId}"]`
+    );
+
+    if (row) {
+      const label = row.querySelector(".label");
+      // 라벨 -> 인라인 입력창 전환 => 즉시 제목 수정 가능
+      if (label) inlineRename(state.activeId, label);
+    }
+  }
+});
