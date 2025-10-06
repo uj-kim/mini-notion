@@ -1496,3 +1496,35 @@ themeToggle?.addEventListener("change", () => {
   applyTheme(next); // 즉시 적용
   saveTheme(next); // localStorage에 저장
 });
+
+// Export / Import (백업/복원)
+$("#exportBtn")?.addEventListener("click", () => {
+  const data = localStorage.getItem(STORAGE_KEY) || "{}"; //데이터 로드 (부재시 기본값)
+  const blob = new Blob([data], { type: "application/json" }); // Blob 생성
+  const url = URL.createObjectURL(blob); // 임시 URL 발급 : 사용자가 "다운로드" 누르면 이 URL이 실제 파일처럼 동작
+  const a = document.createElement("a"); // 동적 앵커 생성
+  a.href = url;
+  a.download = "notion-export.json";
+  a.click(); //다운로드 트리거
+  URL.revokeObjectURL(url); // 메모리 정리
+});
+
+$("#importFile")?.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  // 실제 반영
+  reader.onload = () => {
+    try {
+      // 저장소에 덮어쓰기
+      localStorage.setItem(STORAGE_KEY, reader.result);
+      load(); //상태 재초기화 -> 방금 저장한 스냅샷으로 메모리 state 갱신
+      renderTrees(); // 사이드바 갱신 (트리 재렌더)
+      renderPage(); // 본문 갱신(활성 문서 화면 동기화)
+      toast("Import complete", "success");
+    } catch (err) {
+      toast("Import failed", "error");
+    }
+  };
+  reader.readAsText(file); // 실행 트리거
+});
