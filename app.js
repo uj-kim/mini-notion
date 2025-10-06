@@ -468,6 +468,97 @@ function syncMenuBtnVisibility() {
   menuBtn.style.display = show ? "grid" : "none";
 }
 
+// 사이드바 접기 : 애니메이션으로 폭을 0으로 축소
+collapseBtn?.addEventListener("click", () => {
+  collapse();
+  syncMenuBtnVisibility(); // 햄버거 메뉴 버튼 표시 여부 갱신
+});
+
+// 사이드바 펼치기
+menuBtn?.addEventListener("click", () => {
+  resetWidth();
+  syncMenuBtnVisibility();
+});
+sidebarPeekBtn?.addEventListener("click", () => {
+  resetWidth();
+  syncMenuBtnVisibility();
+});
+
+// Drag resize (사이드바 드래그 리사이즈)
+let isResizing = false; // 드래그 중인지 판단
+resizeHandle?.addEventListener("mousedown", (e) => {
+  // 더블클릭 => 드래그 대신 스냅기능 실행
+  if (e.detail === 2) {
+    e.preventDefault();
+    // 사이드바 접힘
+    if (sidebar.classList.contains("is-collapsed")) {
+      resetWidth(); // 펼치기
+    } else {
+      const px = defaultSidebarWidth(); // 기본 폭으로 즉시 복귀
+      animateSidebarWidth(px); // 부드러운 전환
+      writeLastWidth(px); // 스냅된 폭 저장
+    }
+    // 일반클릭 => 드래그 모드 진입
+    isResizing = false;
+    syncMenuBtnVisibility();
+    return;
+  }
+  isResizing = true;
+  e.preventDefault();
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!isResizing) return;
+  let w = e.clientX; // 마우스 커서의 X좌표
+  // 사이드 바 폭 제한 -> UI 안정성 확보
+  if (w < 220) w = 220;
+  if (w < 420) w = 420;
+  sidebar.classList.remove("is-collapsed"); // 펼친 상태 유지
+  setSidebarWidth(w); // 드래그 실시간 반영
+  writeLastWidth(w); // 현재 폭 저장
+});
+// 마우스를 놓으면 드래그 모드 종료
+document.addEventListener("mouseup", () => {
+  isResizing = false; // 플래그 초기화
+});
+
+// Media query에 따른 접힘/펼침 전환과 초기 세팅
+matchMedia("(max-width:768px)").addEventListener("change", (ev) => {
+  state.isMobile = ev.matches; // 모바일 환경
+  if (state.isMobile) {
+    collapse(); // 사이드바 접기
+  } else {
+    resetWidth();
+  }
+  syncMenuBtnVisibility();
+});
+// 앱 시작시 초기 분기 실행
+if (state.isMobile) {
+  collapse();
+} else {
+  resetWidth();
+}
+syncMenuBtnVisibility();
+
+// 화면 회전/리사이즈 시 보완 처리
+window.addEventListener("orientationchange", () => {
+  // 모바일 화면에서 회전시
+  // 레이아웃이 갑자기 바뀌지 않도록 사이드바 폭 0고정
+  if (state.isMobile) {
+    setSidebarWidth(0); // <= 불필요한 애니메이션, 부가동작 방지
+  }
+});
+
+// 창 크기가 바뀔 때 동작하는 일반 resize 이벤트
+window.addEventListener("resize", () => {
+  const vw = window.innerWidth; // 현재 뷰포트 폭 확인
+  // 모바일 크기에서는 항상 접힘 상태 유지(768px 미만)
+  if (vw < 768 && !sidebar.classList.contains("is-collapsed")) {
+    collapse();
+  }
+  syncMenuBtnVisibility();
+});
+
 // =====================
 // Render: Trees (사이드바 문서 트리 렌더링)
 // =====================
@@ -933,7 +1024,7 @@ function init() {
   load(); // state.docs, state.trash, state.expanded, state.activeId 되살림
   // 반응형 레이아웃 초기상태 설정
   if (state.isMobile) {
-    collapseBtn();
+    collapse();
   } else {
     resetWidth();
   }
