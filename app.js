@@ -1528,3 +1528,36 @@ $("#importFile")?.addEventListener("change", (e) => {
   };
   reader.readAsText(file); // 실행 트리거
 });
+
+// =====================
+// Confirm modal (확인 다이얼로그)
+// =====================
+const modalOverlay = $("#modalOverlay"); // 화면 전체를 덮어 모달 뒤 요소와의 상호작용 차단
+let modalResolver = null; // "확인" 버튼 클릭시 실행할 콜백을 임시 보관하는 저장소
+
+// 모달 열기 + 메시지/콜백 연결의 진입점
+function confirmModal(message, onConfirm) {
+  const t = $("#modalTitle"),
+    m = $("#modalMessage");
+  if (t) t.textContent = "Confirm";
+  if (m) m.textContent = message;
+  // 오버레이 노출
+  if (modalOverlay) modalOverlay.style.display = "flex";
+  // 콜백 저장 : 확인 시 실행 로직 보관
+  modalResolver = onConfirm;
+}
+
+// 취소 모달
+$("#modalCancel")?.addEventListener("click", () => {
+  // 오버레이 숨김
+  if (modalOverlay) modalOverlay.style.display = "none";
+  // 콜백 제거
+  modalResolver = null;
+});
+
+// 확인 클릭 -> 모달 닫기
+$("#modalConfirm")?.addEventListener("click", () => {
+  if (modalOverlay) modalOverlay.style.display = "none";
+  if (modalResolver) modalResolver();
+  modalResolver = null; // 초기화 -> 중복 실행 방지
+});
