@@ -403,6 +403,13 @@ function readLastWidth() {
   } catch (e) {}
 }
 
+function writeLastWidth(w) {
+  lastSidebarWidth = w;
+  try {
+    localStorage.setItem(LS_LAST_WIDTH_KEY, String(w));
+  } catch (e) {}
+}
+
 // 실제 렌더된 사이드바 현재 폭을 숫자로 반환
 function getCurrentSidebarWidth() {
   const sb = document.querySelector("#sidebar");
@@ -433,7 +440,7 @@ function animateSidebarWidth(toPx, duration = 300) {
   function frame(now) {
     const progress = Math.min(1, (now - start) / duration);
     const cur = fromPx + (toPx - fromPx) * progress;
-    setSidebarWidth(toPx);
+    setSidebarWidth(cur);
     if (progress < 1) requestAnimationFrame(frame);
     else setSidebarWidth(toPx);
   }
@@ -512,7 +519,7 @@ document.addEventListener("mousemove", (e) => {
   let w = e.clientX; // 마우스 커서의 X좌표
   // 사이드 바 폭 제한 -> UI 안정성 확보
   if (w < 220) w = 220;
-  if (w < 420) w = 420;
+  if (w > 420) w = 420;
   sidebar.classList.remove("is-collapsed"); // 펼친 상태 유지
   setSidebarWidth(w); // 드래그 실시간 반영
   writeLastWidth(w); // 현재 폭 저장
@@ -1017,33 +1024,6 @@ $("#todoBtn")?.addEventListener("click", () => {
   }
   saveEditor();
 });
-
-// 초기화
-// 저장상태 불러오기 -> 레이아웃 맞춤 -> 사이드바, 휴지통 먼저 렌더
-function init() {
-  load(); // state.docs, state.trash, state.expanded, state.activeId 되살림
-  // 반응형 레이아웃 초기상태 설정
-  if (state.isMobile) {
-    collapse();
-  } else {
-    resetWidth();
-  }
-  renderTrees(); // 트리그리기
-  renderTrash(); // 휴지통 팝오버 목록 미리 준비
-  // 해시가 비어있는 경우
-  if (!location.hash) {
-    // 기본문서로 이동
-    navigateTo("welcome");
-  } else {
-    // 해시가 있는 경우 -> 해시에 맞춰 동기화
-    syncFromLocation();
-  }
-  // 오늘날짜표기
-  const ld = $("#lastEdited");
-  if (ld) ld.textContent = new Date().toLocaleDateString();
-  // 메뉴버튼을 사이드바 상태, 뷰포트에 맞춰 표시
-  syncMenuBtnVisibility();
-}
 
 let saveTimer = null;
 
@@ -1690,3 +1670,36 @@ document.addEventListener("keydown", (e) => {
     }
   }
 });
+
+// =====================
+// Init
+// =====================
+// 초기화
+// 저장상태 불러오기 -> 레이아웃 맞춤 -> 사이드바, 휴지통 먼저 렌더
+function init() {
+  load(); // state.docs, state.trash, state.expanded, state.activeId 되살림
+  // 반응형 레이아웃 초기상태 설정
+  if (state.isMobile) {
+    collapse();
+  } else {
+    resetWidth();
+  }
+  renderTrees(); // 사이드바 트리그리기
+  renderTrash(); // 휴지통 팝오버 목록 미리 준비
+  // 라우팅 초기화
+  // 해시가 비어있는 경우
+  if (!location.hash) {
+    // 기본문서로 이동
+    navigateTo("welcome");
+  } else {
+    // 해시가 있는 경우 -> 해시에 맞춰 동기화
+    syncFromLocation();
+  }
+  // 오늘날짜표기
+  const ld = $("#lastEdited");
+  if (ld) ld.textContent = new Date().toLocaleDateString();
+  // 햄버거메뉴버튼을 사이드바 상태, 뷰포트에 맞춰 표시
+  syncMenuBtnVisibility();
+}
+
+init();
