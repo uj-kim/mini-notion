@@ -70,6 +70,12 @@ function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
+function saveTheme(theme) {
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch (e) {}
+}
+
 function loadTheme() {
   try {
     const t = localStorage.getItem(THEME_KEY);
@@ -1437,4 +1443,56 @@ searchOverlay?.addEventListener("click", (e) => {
 
 document.querySelectorAll("#actionSearch").forEach((el) => {
   el.addEventListener("click", openSearch);
+});
+
+// =====================
+// Settings Modal + Theme + Export/Import
+// =====================
+const settingsOverlay = $("#settingsOverlay"); // 화면 전체 오버레이
+const themeToggle = $("#themeToggle"); // 설정 모달 내부 체크박스 - 라이트 모드 사용 여부
+
+// 설정 모달 열기
+function openSettings() {
+  // 현재 테마 반영: 'light'면 체크, 'dark'면 체크 해제
+  currentTheme = loadTheme(); // currentTheme 갱신 (localStorage에서 "light"/"dark" 읽기)
+  if (themeToggle) themeToggle.checked = currentTheme === "light"; // "light" -> 체크 / "dark" -> 해제
+  if (settingsOverlay) settingsOverlay.style.display = "grid";
+}
+
+// 모달을 여는 트리거
+// 어느 위치 버튼이든 openSettings() 실행 -> 동일 흐름으로 모달 오픈
+// 동일 ID 중복 버튼 2개 이므로, 실무에서는 ID 중복 <<< 공통 클래스, data-action 사용 권장
+document.querySelectorAll("#actionSettings").forEach((el) => {
+  el.addEventListener("click", openSettings);
+});
+
+// 모달 닫기 경로 1 : 옵셔널 체이닝으로 닫기 버튼 존재 확인 후 처리
+$("#settingsClose")?.addEventListener("click", () => {
+  if (settingsOverlay) settingsOverlay.style.display = "none";
+});
+
+// 모달 닫기 경로 2 : Overlay의 빈 배경 클릭
+settingsOverlay?.addEventListener("click", (e) => {
+  if (e.target === settingsOverlay) settingsOverlay.style.display = "none";
+});
+
+// 모달 닫기 경로 3
+// settingsOverlay 존재 + 모달 열림 상태 + ESC 키 누름
+document.addEventListener("keydown", (e) => {
+  if (
+    settingsOverlay &&
+    settingsOverlay.style.display === "grid" &&
+    e.key === "Escape"
+  ) {
+    e.preventDefault();
+    settingsOverlay.style.display = "none";
+  }
+});
+
+// 테마 전환
+themeToggle?.addEventListener("change", () => {
+  const next = themeToggle.checked ? "light" : "dark";
+  currentTheme = next; // 메모리 동기화
+  applyTheme(next); // 즉시 적용
+  saveTheme(next); // localStorage에 저장
 });
