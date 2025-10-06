@@ -599,7 +599,7 @@ let currentDropdown = null;
 // 진입점 : Dropdown 메뉴 열기
 function openDropdownMenu(anchorEl, doc, labelEl) {
   closeDropdownMenu(); //이전메뉴 닫기(여러 메뉴 동시 노출 방지)
-  const rect = anchorEl.getboundingClientRect(); //기준요소 anchorEl의 화면 좌표 및 크기 -> 드롭다운 위치 계산
+  const rect = anchorEl.getBoundingClientRect(); //기준요소 anchorEl의 화면 좌표 및 크기 -> 드롭다운 위치 계산
   const menu = el("div", { className: "dropdown-menu open" });
   // 문서 이름 바꾸기
   const miRename = el("div", {
@@ -1123,7 +1123,7 @@ function positionTrashPopover() {
   // 휴지통 버튼의 현재 화면상 위치
   const rect = trashTrigger.getBoundingClientRect();
   // 모바일 뷰인지 확인
-  const bottom = window.matchMedia("(max-width: 768px").matches;
+  const bottom = window.matchMedia("(max-width: 768px)").matches;
   // 모바일 분기(우선)
   if (bottom) {
     trashPopover.style.left =
@@ -1141,7 +1141,7 @@ function toggleTrash() {
   // 팝오버 요소가 없을 때도 안전하게 종료(안전장치)
   if (!trashPopover) return;
   // 토글 구조_열려있는 경우
-  if (trashPopover.classlist.contains("open")) {
+  if (trashPopover.classList.contains("open")) {
     trashPopover.classList.remove("open");
     return;
   }
@@ -1197,7 +1197,7 @@ function renderTrash() {
     const info = el("span", {
       className: "muted",
       textContent:
-        doc.__origParentid && !existsInDocs(doc.__origParentid)
+        doc.__origParentId && !existsInDocs(doc.__origParentId)
           ? "-> 복원 시 루트로 이동"
           : "",
     });
@@ -1248,4 +1248,193 @@ function renderTrash() {
 // 휴지통 검색
 document.addEventListener("input", (e) => {
   if (e.target && e.target.id === "trashSearch") renderTrash();
+});
+
+// =====================
+// Favorites modal (즐겨찾기 모달)
+// =====================
+// 핵심 DOM 변수 캐싱
+const favoritesOverlay = $("#favoritesOverlay");
+const favoritesListModal = $("#favoritesListModal");
+const openFavoritesModalBtn = $("#openFavoritesModal");
+const favoritesCloseBtn = $("#favoritesClose");
+
+// 즐겨찾기 모달 열기
+function openFavoritesModal() {
+  // 최신 상태 반영하려면 모달이 열릴 때마다 list를 재빌드
+  buildFavoritesModal();
+  if (favoritesOverlay) favoritesOverlay.style.display = "grid";
+}
+
+// 모달 닫기
+function closeFavoritesModal() {
+  // display만 제어 -> 재오픈시 초기화 비용 감소 + 접근성 관련 포커스 트랩 안정적으로 유지
+  if (favoritesOverlay) favoritesOverlay.style.display = "none";
+}
+
+// 즐겨찾기 목록 구성
+function buildFavoritesModal() {
+  // favoritesListModal 존재 여부 확인 -> 없으면 조기종료
+  if (!favoritesListModal) return;
+  favoritesListModal.innerHTML = ""; //초기화
+  // 필터링, 제목 알파벳순 정렬
+  const favs = state.docs
+    .filter((d) => d.starred)
+    .sort((a, b) => a.title.localeCompare(b.title));
+  // 즐겨찾기 문서가 없는 경우
+  if (favs.length === 0) {
+    favoritesListModal.innerHTML =
+      '<div class="muted" style="padding:12px">No favorites yet</div>';
+    return;
+  }
+
+  favs.forEach((doc) => {
+    const row = el("div", { className: "fav-row" });
+    const ico = el("div", {
+      className: "doc-icon " + (doc.icon ? "has-icon" : "no-icon"),
+      textContent: doc.icon || "∅",
+    });
+    const title = el("div", { textContent: doc.title, style: "flex:1" });
+    const acts = el("div", { className: "fav-actions" });
+    const unstar = el("div", {
+      className: "icon-btn",
+      title: "Unstar",
+      textContent: "☆",
+    });
+    unstar.addEventListener("click", (e) => {
+      e.stopPropagation();
+      updateDoc(doc.id, { starred: false }); // 현재 문서 즐겨찾기 해제
+      // 활성 문서 동기화
+      if (state.activeId === doc.id) {
+        const d = findDoc(doc.id);
+        if (starBtn) starBtn.textContent = d.starred ? "★" : "☆";
+      }
+      // UI재렌더
+      renderTrees();
+      buildFavoritesModal();
+    });
+    row.append(ico, title, acts);
+    acts.append(unstar);
+    row.addEventListener("click", () => {
+      closeFavoritesModal();
+      navigateTo(doc.id);
+    });
+    favoritesListModal.appendChild(row);
+  });
+}
+
+openFavoritesModalBtn?.addEventListener("click", openFavoritesModal);
+favoritesCloseBtn?.addEventListener("click", closeFavoritesModal);
+favoritesOverlay?.addEventListener("click", (e) => {
+  if (e.target === favoritesOverlay) closeFavoritesModal();
+});
+// 키보드로 빠르게 닫기(ESC)
+document.addEventListener("keydown", (e) => {
+  if (
+    favoritesOverlay &&
+    favoritesOverlay.style.display === "grid" &&
+    e.key === "Escape"
+  ) {
+    e.preventDefault();
+    closeFavoritesModal();
+  }
+});
+
+// =====================
+// Quick Search Modal (제목 기반 빠른 검색)
+// =====================
+const searchOverlay = $("#searchOverlay"); // 반투명 배경 + 검색 패널을 담는 최상위 레이어
+const searchInput = $("#searchInput");
+const searchResults = $("#searchResults"); // 검색 결과 컨테이너
+
+let searchActiveIndex = -1; // 키보드 네비게이션용 선택 인덱스(-1은 아무 항목도 선택되지 않음)
+
+// 검색 모달 열기
+function openSearch() {
+  if (searchOverlay && searchInput) {
+    searchOverlay.style.display = "grid";
+    searchInput.value = "";
+    renderSearchResults("");
+    searchInput.focus(); // 즉시 포커스
+  }
+}
+
+// 모달 닫기
+function closeSearch() {
+  if (searchOverlay) searchOverlay.style.display = "none";
+}
+
+// 입력값을 받아 문서 목록 필터링 + 결과 렌더링
+function renderSearchResults(q) {
+  if (!searchResults) return;
+  // 대소문자 무시 필터
+  const items = state.docs.filter((d) =>
+    d.title.toLowerCase().includes(q.toLowerCase())
+  );
+  searchResults.innerHTML = ""; //초기화(이전결과지우기)
+  items.forEach((d, i) => {
+    const row = el("div", { className: "trash-row" });
+    // 이모지 아이콘 + 제목을 innerHTML로 삽입
+    row.innerHTML = `<span>${d.icon || "📄"} ${d.title}</span>`;
+    row.addEventListener("click", () => {
+      closeSearch();
+      navigateTo(d.id);
+    });
+    // 키보드 하이라이트 -> 현재 선택 항목 강조
+    if (i === searchActiveIndex) row.style.background = "var(--panel-3)";
+    searchResults.appendChild(row);
+  });
+}
+
+// 추가, 삭제, 붙여넣기 등 모든 값 변화 -> input 이벤트 발생
+searchInput?.addEventListener("input", () => {
+  searchActiveIndex = -1;
+  renderSearchResults(searchInput.value);
+});
+
+searchInput?.addEventListener("keydown", (e) => {
+  const items = searchResults?.children || [];
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeSearch(); //모달닫기
+  }
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    // 마지막 항목을 넘지 않도록 제한
+    searchActiveIndex = Math.min(items.length - 1, searchActiveIndex + 1);
+    renderSearchResults(searchInput.value);
+  }
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    // 아래로 내려가지 않도록 제한
+    searchActiveIndex = Math.max(0, searchActiveIndex - 1);
+    renderSearchResults(searchInput.value);
+  }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    // 선택 인덱스가 유효한지 검사
+    if (items.length && searchActiveIndex >= 0) {
+      items[searchActiveIndex].click();
+    }
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  // 현재 모달이 열려있는지 판별
+  if (
+    searchOverlay &&
+    searchOverlay.style.display === "grid" &&
+    e.key === "Escape"
+  ) {
+    e.preventDefault();
+    closeSearch();
+  }
+});
+// 모달 외부 클릭시 모달 닫기
+searchOverlay?.addEventListener("click", (e) => {
+  if (e.target === searchOverlay) closeSearch();
+});
+
+document.querySelectorAll("#actionSearch").forEach((el) => {
+  el.addEventListener("click", openSearch);
 });
