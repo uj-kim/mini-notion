@@ -1109,3 +1109,143 @@ const actionCreateRoot = document.getElementById("actionCreateRoot");
     });
   }
 });
+
+// =====================
+// Trash popover (portal)
+// =====================
+// 상수로 미리 캐싱 : 이후 여러 함수에서 반복 접근하므로 빠르게 참조 가능 => 성능, 가독성 향상
+const trashTrigger = $("#trashTrigger"); // 사이드바 하단/네비게이션의 휴지통 아이콘 버튼, 목록 열기/닫기 트리거
+const trashPopover = $("#trashPopover"); //삭제 문서 리스트를 보여주는 팝오버 영역
+
+function positionTrashPopover() {
+  // 휴지통 버튼, 팝오버 창이 실제 존재하는 지 확인
+  if (!trashTrigger || !trashPopover) return;
+  // 휴지통 버튼의 현재 화면상 위치
+  const rect = trashTrigger.getBoundingClientRect();
+  // 모바일 뷰인지 확인
+  const bottom = window.matchMedia("(max-width: 768px").matches;
+  // 모바일 분기(우선)
+  if (bottom) {
+    trashPopover.style.left =
+      Math.min(rect.left, window.innerWidth - 340) + "px";
+    trashPopover.style.top = rect.bottom + 8 + "px";
+  } else {
+    trashPopover.style.left =
+      Math.min(rect.right + 8, window.innerWidth - 340) + "px";
+    trashPopover.style.top = rect.top + "px";
+  }
+}
+
+// 팝오버 열림/닫힘
+function toggleTrash() {
+  // 팝오버 요소가 없을 때도 안전하게 종료(안전장치)
+  if (!trashPopover) return;
+  // 토글 구조_열려있는 경우
+  if (trashPopover.classlist.contains("open")) {
+    trashPopover.classList.remove("open");
+    return;
+  }
+  // 닫혀있는 경우
+  positionTrashPopover();
+  trashPopover.classList.add("open");
+}
+
+trashTrigger?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleTrash();
+});
+
+window.addEventListener("resize", () => {
+  if (trashPopover?.classList.contains("open")) positionTrashPopover();
+});
+
+document.addEventListener("click", (e) => {
+  if (
+    trashPopover &&
+    !trashPopover.contains(e.target) &&
+    e.target !== trashTrigger
+  )
+    trashPopover.classList.remove("open");
+});
+
+function renderTrash() {
+  const list = $("#trashList"); // 컨테이너 확보
+
+  if (!list) return; //팝오버 미마운트 안전 처리
+  const search = ($("#trashSearch")?.value || "").trim().toLowerCase(); //검색어 읽기
+  list.innerHTML = ""; //이전 렌더 결과를 깨끗이 비워 초기화
+  // 필터링
+  const filtered = state.trash.filter((d) =>
+    d.title.toLowerCase().includes(search)
+  );
+
+  if (filtered.length === 0) {
+    const p = el("p", {
+      className: "muted",
+      textContent: "No documents found",
+    });
+    list.appendChild(p);
+    return;
+  }
+
+  filtered.forEach((doc) => {
+    const row = el("div", { className: "trash-row" });
+    const title = el("span", {
+      textContent: doc.title,
+      style: "flex:1 1 auto; min-width:0",
+    });
+    const info = el("span", {
+      className: "muted",
+      textContent:
+        doc.__origParentid && !existsInDocs(doc.__origParentid)
+          ? "-> 복원 시 루트로 이동"
+          : "",
+    });
+
+    // 우측 액션 컨테이너 생성 : 복원 버튼 + 영구 삭제 버튼
+    const acts = el("div", { className: "trash-actions" });
+    const restore = el("div", {
+      className: "icon-btn",
+      title: "Restore",
+      textContent: "↩",
+    });
+
+    const del = el("div", {
+      className: "icon-btn",
+      title: "Delete permanently",
+      textContent: "🗑️",
+    });
+
+    // 복원
+    restore.addEventListener("click", (e) => {
+      e.stopPropagation(); //클릭차단
+      restoreDoc(doc.id); // 복원 (트리이동)
+      renderTrees(); // 사이드바 갱신
+      renderTrash(); // 휴지통 갱신(목록 재구성)
+    });
+
+    // 영구삭제
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // 영구 삭제 여부 확인(모달) -> 확인 콜백에서만 실행
+      confirmModal(`Delete "${doc.title}" permanently?`, () => {
+        removeDoc(doc.id);
+        toast("Note deleted!", "error");
+        renderTrash(); // 목록 갱신
+      });
+    });
+    // 액션 영역
+    acts.append(info, restore, del);
+    row.append(title, acts);
+    row.addEventListener("click", () => {
+      trashPopover?.classList.remove("open");
+      navigateTo(doc.id);
+    });
+    list.appendChild(row);
+  });
+}
+
+// 휴지통 검색
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "trashSearch") renderTrash();
+});
